@@ -1,5 +1,6 @@
-![Ruyi Kernel V1 Poster]
-(ruyi-kernel-poster.png)
+<p align="center">
+  <img src="ruyi-kernel-poster.png" alt="Ruyi Kernel V1 Poster" width="100%">
+</p>
 
 # RuyiKernal
 
