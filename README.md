@@ -1,4 +1,4 @@
-# DuchampSaanKernel
+# RuyiKernal
 
 Custom GKI kernel for **duchamp** (Poco X6 Pro, MT6897), based on Google's Android Common Kernel `android14-6.1`.
 
@@ -9,7 +9,7 @@ Custom GKI kernel for **duchamp** (Poco X6 Pro, MT6897), based on Google's Andro
 | | |
 |---|---|
 | Base | Google ACK `android14-6.1` (6.1.177) |
-| Kernel name | `6.1.177-saan` |
+| Kernel name | `6.1.177-Ruyi-saan` |
 | Root | [BakaSU](https://github.com/Baka-SU/BakaSU), pinned to `5b76b884` (git submodule in `KernelSU/`) |
 | SUSFS | v2.3.0 kernel patch (`fs/susfs.c`, hooks across `fs/`, `kernel/`, `mm/`, `security/`) |
 | LTO | ThinLTO (`CONFIG_LTO_CLANG_THIN=y`) |

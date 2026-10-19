@@ -50,7 +50,7 @@ jobs:
           grep -q '^CONFIG_LTO_CLANG_THIN=y$' out/.config || { echo "::error::ThinLTO was not enabled (check clang, lld and llvm tools)"; exit 1; }
           $MAKE -j"$(nproc)" Image 2>&1 | tee build.log
           test -f out/arch/arm64/boot/Image || { echo "::error::Image was not produced"; exit 1; }
-          echo "ZIP_NAME=Saan-$($MAKE -s kernelrelease)-$DEVICE-$(date +%Y%m%d).zip" >> "$GITHUB_ENV"
+          echo "ZIP_NAME=$($MAKE -s kernelrelease)-$DEVICE-$(date +%Y%m%d).zip" >> "$GITHUB_ENV"
 
       - name: Show first errors
         if: failure()
