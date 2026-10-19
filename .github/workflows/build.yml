@@ -11,6 +11,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 240
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Free disk space
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
@@ -45,6 +48,10 @@ jobs:
           $MAKE -j"$(nproc)" Image 2>&1 | tee build.log
           echo "ZIP_NAME=Saan-$($MAKE -s kernelrelease)-$DEVICE-$(date +%Y%m%d).zip" >> "$GITHUB_ENV"
 
+      - name: Show first errors
+        if: failure()
+        run: grep -n -m 30 -E 'error:|Error [0-9]+|undefined reference|No such file' build.log || tail -50 build.log
+
       - name: Package (AnyKernel3)
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3
@@ -62,6 +69,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ZIP_NAME }}
-          path: |
-            ${{ env.ZIP_NAME }}
-            build.log
+          path: ${{ env.ZIP_NAME }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: build.log
