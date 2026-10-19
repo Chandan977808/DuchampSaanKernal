@@ -3,12 +3,21 @@ name: Build Kernel
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
-  CLANG_VERSION: r487747c
+  NAME: Saan
   DEVICE: duchamp
+  ANYKERNEL3_REPO: https://github.com/handingslider/AnyKernel3
+  ANYKERNEL3_BRANCH: master
+  # BakaSU commit, same as the KernelSU submodule. Last commit before 48fa4bb7
+  # ("suspend susfs build"): newer BakaSU refuses to build with SUSFS.
+  KSU_REF: 5b76b884c75f729a220bb317aa4a4fc78f0e0e9c
 
 jobs:
   build:
+    name: Build GKI
     runs-on: ubuntu-latest
     timeout-minutes: 240
     defaults:
@@ -16,55 +25,92 @@ jobs:
         shell: bash
     steps:
       - name: Free disk space
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-
-      - uses: actions/checkout@v4
+        uses: jlumbroso/free-disk-space@v1.3.1
         with:
-          submodules: recursive
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
 
-      # BakaSU derives its version from the commit count, so it needs full history
-      - name: Unshallow BakaSU
-        run: git -C KernelSU fetch --unshallow || true
-
-      - name: Install dependencies
+      - name: Install repo tool
         run: |
-          sudo apt-get update
-          sudo apt-get install -y bc bison flex libssl-dev libelf-dev cpio lz4 zip
+          mkdir -p "$GITHUB_WORKSPACE/git-repo" "$GITHUB_WORKSPACE/kernel"
+          curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo -o "$GITHUB_WORKSPACE/git-repo/repo"
+          chmod 0755 "$GITHUB_WORKSPACE/git-repo/repo"
+          echo "$GITHUB_WORKSPACE/git-repo" >> "$GITHUB_PATH"
 
-      - name: Get clang ${{ env.CLANG_VERSION }}
+      # Google's workspace gives us the Bazel (Kleaf) build tooling and prebuilt clang
+      - name: Sync Android kernel workspace
+        working-directory: kernel
         run: |
-          for ref in android14-release main-kernel-build-2024 main; do
-            rm -rf clang && mkdir clang
-            url="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/$ref/clang-$CLANG_VERSION.tar.gz"
-            curl -fsSL "$url" | tar -xz -C clang && break
-          done
-          clang/bin/clang --version | head -1
+          repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-6.1-lts --repo-rev=v2.16 --depth=1
+          repo sync -c -j"$(nproc --all)" --fail-fast --no-tags --force-sync --no-clone-bundle
 
-      - name: Build
+      # Replace Google's common/ with this repo's source
+      - name: Use this repo as common/
         run: |
-          export PATH="$PWD/clang/bin:$PATH"
-          MAKE="make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 KCFLAGS=-D__ANDROID_COMMON_KERNEL__"
-          $MAKE gki_defconfig
-          $MAKE -j"$(nproc)" Image 2>&1 | tee build.log
-          echo "ZIP_NAME=Saan-$($MAKE -s kernelrelease)-$DEVICE-$(date +%Y%m%d).zip" >> "$GITHUB_ENV"
+          rm -rf kernel/common
+          git clone --depth=1 -b "$GITHUB_REF_NAME" "https://github.com/$GITHUB_REPOSITORY" kernel/common
+
+      - name: Add BakaSU
+        working-directory: kernel/common
+        run: |
+          rm -rf KernelSU
+          curl -fsSL "https://raw.githubusercontent.com/Baka-SU/BakaSU/${KSU_REF}/kernel/setup.sh" | bash -s -- "$KSU_REF"
+
+      - name: Cleanup protected exports
+        working-directory: kernel/common
+        run: |
+          rm -rf ./android/abi_gki_protected_exports_*
+          perl -pi -e 's/^\s*"protected_exports_list"\s*:\s*"android\/abi_gki_protected_exports_aarch64",\s*$//;' ./BUILD.bazel
+          sed -i 's/check_defconfig//' ./build.config.gki
+          grep -q '^CONFIG_WERROR=' arch/arm64/configs/gki_defconfig || echo 'CONFIG_WERROR=n' >> arch/arm64/configs/gki_defconfig
+
+      - name: Verify features applied
+        working-directory: kernel/common
+        run: |
+          fail=0
+          [ -L drivers/kernelsu ] && [ -f drivers/kernelsu/Kconfig ] || { echo "::error::BakaSU symlink missing"; fail=1; }
+          [ -e KernelSU/.git ] || { echo "::error::KernelSU/.git missing (Kbuild requires it)"; fail=1; }
+          [ "$(git -C KernelSU rev-parse HEAD)" = "$KSU_REF" ] || { echo "::error::BakaSU not at $KSU_REF"; fail=1; }
+          grep -q '^CONFIG_KSU=y$' arch/arm64/configs/gki_defconfig || { echo "::error::CONFIG_KSU missing"; fail=1; }
+          grep -q '^CONFIG_KSU_SUSFS=y$' arch/arm64/configs/gki_defconfig || { echo "::error::CONFIG_KSU_SUSFS missing"; fail=1; }
+          [ -f fs/susfs.c ] && [ -f include/linux/susfs.h ] || { echo "::error::SUSFS files missing"; fail=1; }
+          grep -q 'ksu_handle_execveat' fs/exec.c || { echo "::error::SUSFS exec hook missing"; fail=1; }
+          [ -z "$(find . -name '*.rej' -print -quit)" ] || { echo "::error::patch rejects found"; fail=1; }
+          exit $fail
+
+      - name: Commit changes
+        working-directory: kernel/common
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Apply build changes" || true
+
+      - name: Build kernel (Bazel, LTO disabled)
+        working-directory: kernel
+        run: |
+          tools/bazel build --config=fast --config=stamp --lto=none \
+            //common:kernel_aarch64_dist 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
 
       - name: Show first errors
         if: failure()
-        run: grep -n -m 30 -E 'error:|Error [0-9]+|undefined reference|No such file' build.log || tail -50 build.log
+        run: grep -n -m 30 -E 'ERROR|error:|undefined reference|No such file' "$GITHUB_WORKSPACE/build.log" || tail -50 "$GITHUB_WORKSPACE/build.log"
 
-      - name: Package (AnyKernel3)
+      - name: Package AnyKernel3
         run: |
-          git clone --depth=1 https://github.com/osm0sis/AnyKernel3
-          cp out/arch/arm64/boot/Image AnyKernel3/
-          cd AnyKernel3
-          sed -i \
-            -e "s|^BLOCK=.*|BLOCK=boot;|" \
-            -e "s|^IS_SLOT_DEVICE=.*|IS_SLOT_DEVICE=auto;|" \
-            -e "s|^do.devicecheck=.*|do.devicecheck=1|" \
-            -e "s|^device.name1=.*|device.name1=$DEVICE|" \
-            -e "/^device.name[2-5]=/d" \
-            anykernel.sh
-          zip -r9 "../$ZIP_NAME" . -x ".git*" "README.md" "*placeholder"
+          git clone "$ANYKERNEL3_REPO" -b "$ANYKERNEL3_BRANCH" AnyKernel3
+          rm -rf AnyKernel3/.git
+          sed -i "s/^kernel.string=.*/kernel.string=$NAME kernel/" AnyKernel3/anykernel.sh
+          cp kernel/bazel-out/k8-fastbuild/bin/common/kernel_aarch64/Image AnyKernel3/Image
+          SUBLEVEL=$(grep -E '^SUBLEVEL =' kernel/common/Makefile | head -n1 | awk '{print $3}')
+          ZIP="${NAME}-6.1.${SUBLEVEL}-saan-${DEVICE}-$(date +%Y%m%d_%H%M).zip"
+          (cd AnyKernel3 && zip -r9 "../$ZIP" ./*)
+          echo "ZIP_NAME=$ZIP" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
         with:
