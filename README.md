@@ -1,4 +1,4 @@
-# DuchampSaanKernal
+# DuchampSaanKernel
 
 Custom GKI kernel for **duchamp** (Poco X6 Pro, MT6897), based on Google's Android Common Kernel `android14-6.1`.
 
@@ -8,7 +8,7 @@ Custom GKI kernel for **duchamp** (Poco X6 Pro, MT6897), based on Google's Andro
 
 | | |
 |---|---|
-| Base | Google ACK `android14-6.1` (6.1.177), via [chainonyourdoor/LuminaireKernel-6.1](https://github.com/chainonyourdoor/LuminaireKernel-6.1) |
+| Base | Google ACK `android14-6.1` (6.1.177) |
 | Kernel name | `6.1.177-saan` |
 | Root | [BakaSU](https://github.com/Baka-SU/BakaSU), pinned to `5b76b884` (git submodule in `KernelSU/`) |
 | SUSFS | v2.3.0 kernel patch (`fs/susfs.c`, hooks across `fs/`, `kernel/`, `mm/`, `security/`) |
@@ -21,35 +21,29 @@ BakaSU is pinned because newer versions refuse to build with SUSFS ("suspend sus
 
 This is a generic GKI kernel. It carries no duchamp device trees or vendor drivers: the stock vendor modules and device tree come from your ROM's `vendor_boot` and `vendor_dlkm`. For those modules to load, the kernel's KMI generation must match your stock kernel (`android14-11`). Check `uname -r` on stock.
 
-## Build
-
-### GitHub Actions (recommended)
-
-1. Open the **Actions** tab, select **Build Kernel**, and tap **Run workflow** on branch `android14-6.1`.
-2. Wait about 40 to 90 minutes.
-3. Download the artifact `Saan-6.1.177-saan-duchamp-<date>.zip`.
-
-The workflow checks that ThinLTO is on and fails early if it is not. On failure, the **Show first errors** step prints the first errors, and `build-log` is always uploaded.
-
-### Local
-
-```sh
-git clone --recurse-submodules https://github.com/Chandan977808/DuchampSaanKernal
-cd DuchampSaanKernal
-export PATH=/path/to/clang-r487747c/bin:$PATH
-make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig
-make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 -j"$(nproc)" Image
-```
-
-Build requirements: `bc bison flex libssl-dev libelf-dev cpio lz4 zip dwarves` (`dwarves` provides `pahole`, needed for BTF). The output is `out/arch/arm64/boot/Image`.
-
 ## Flash
 
-1. Back up your stock boot image.
-2. Flash the AnyKernel3 zip from recovery or a kernel flasher.
+Back up your stock boot image first.
+
+1. **With recovery or a kernel flasher:** flash the AnyKernel3 zip.
+2. **Without recovery:** download the provided `boot.img` and flash it with fastboot:
+
+   ```sh
+   fastboot flash boot_ab boot.img
+   ```
+
 3. Install the BakaSU manager app. SUSFS also needs its userspace tool or module (`ksu_susfs`), which is not part of this repo.
 
 If the phone does not boot, restore your stock boot image.
+
+## Bypass charging
+
+Bypass charging is controlled with [Duchamp Essential](https://github.com/Chandan977808/Duchamp-Essential), which offers Immediate or 20/40/80/90% thresholds and a Quick Settings tile.
+
+1. Install the Duchamp Essential module ZIP through your root manager, then reboot and enable it. Its README lists KernelSU Next Manager and Magisk; BakaSU Manager is untested.
+2. Open Duchamp Essential, go to Charging Control, and turn on bypass charging.
+
+Duchamp Essential needs the battery power-supply directory to expose the `bypass_charging_supported`, `bypass_charging` and `bypass_charging_active` nodes. This kernel does not add them, so they have to come from your ROM's charger driver. See the [bypass charging notes](https://github.com/Chandan977808/Duchamp-Essential/blob/main/docs/BYPASS_CHARGING.md).
 
 ## Credits
 
@@ -59,6 +53,7 @@ If the phone does not boot, restore your stock boot image.
 - simonpunk, SUSFS
 - osm0sis, AnyKernel3
 - MiCode, Xiaomi kernel source
+- NEESCHAL-3, Rodin Essential
 
 ## License
 
