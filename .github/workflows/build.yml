@@ -1,0 +1,67 @@
+name: Build Kernel
+
+on:
+  workflow_dispatch:
+
+env:
+  CLANG_VERSION: r487747c
+  DEVICE: duchamp
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # BakaSU derives its version from the commit count, so it needs full history
+      - name: Unshallow BakaSU
+        run: git -C KernelSU fetch --unshallow || true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev cpio lz4 zip
+
+      - name: Get clang ${{ env.CLANG_VERSION }}
+        run: |
+          for ref in android14-release main-kernel-build-2024 main; do
+            rm -rf clang && mkdir clang
+            url="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/$ref/clang-$CLANG_VERSION.tar.gz"
+            curl -fsSL "$url" | tar -xz -C clang && break
+          done
+          clang/bin/clang --version | head -1
+
+      - name: Build
+        run: |
+          export PATH="$PWD/clang/bin:$PATH"
+          MAKE="make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 KCFLAGS=-D__ANDROID_COMMON_KERNEL__"
+          $MAKE gki_defconfig
+          $MAKE -j"$(nproc)" Image 2>&1 | tee build.log
+          echo "ZIP_NAME=Saan-$($MAKE -s kernelrelease)-$DEVICE-$(date +%Y%m%d).zip" >> "$GITHUB_ENV"
+
+      - name: Package (AnyKernel3)
+        run: |
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3
+          cp out/arch/arm64/boot/Image AnyKernel3/
+          cd AnyKernel3
+          sed -i \
+            -e "s|^BLOCK=.*|BLOCK=boot;|" \
+            -e "s|^IS_SLOT_DEVICE=.*|IS_SLOT_DEVICE=auto;|" \
+            -e "s|^do.devicecheck=.*|do.devicecheck=1|" \
+            -e "s|^device.name1=.*|device.name1=$DEVICE|" \
+            -e "/^device.name[2-5]=/d" \
+            anykernel.sh
+          zip -r9 "../$ZIP_NAME" . -x ".git*" "README.md" "*placeholder"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP_NAME }}
+          path: |
+            ${{ env.ZIP_NAME }}
+            build.log
