@@ -1,3 +1,6 @@
+![Ruyi Kernel V1 Poster]
+(ruyi-kernel-poster.png)
+
 # RuyiKernal
 
 Custom GKI kernel for **duchamp** (Poco X6 Pro, MT6897), based on Google's Android Common Kernel `android14-6.1`.
