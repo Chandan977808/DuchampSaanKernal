@@ -1,150 +1,65 @@
-# How do I submit patches to Android Common Kernels
+# DuchampSaanKernal
 
-1. BEST: Make all of your changes to upstream Linux. If appropriate, backport to the stable releases.
-   These patches will be merged automatically in the corresponding common kernels. If the patch is already
-   in upstream Linux, post a backport of the patch that conforms to the patch requirements below.
-   - Do not send patches upstream that contain only symbol exports. To be considered for upstream Linux,
-additions of `EXPORT_SYMBOL_GPL()` require an in-tree modular driver that uses the symbol -- so include
-the new driver or changes to an existing driver in the same patchset as the export.
-   - When sending patches upstream, the commit message must contain a clear case for why the patch
-is needed and beneficial to the community. Enabling out-of-tree drivers or functionality is not
-not a persuasive case.
+Custom GKI kernel for **duchamp** (Poco X6 Pro, MT6897), based on Google's Android Common Kernel `android14-6.1`.
 
-2. LESS GOOD: Develop your patches out-of-tree (from an upstream Linux point-of-view). Unless these are
-   fixing an Android-specific bug, these are very unlikely to be accepted unless they have been
-   coordinated with kernel-team@android.com. If you want to proceed, post a patch that conforms to the
-   patch requirements below.
+> **Status: work in progress.** The source builds and compiles in static checks, but it has not been boot-tested on a device yet. Flash at your own risk and keep your stock boot image.
 
-# Common Kernel patch requirements
+## Features
 
-- All patches must conform to the Linux kernel coding standards and pass `scripts/checkpatch.pl`
-- Patches shall not break gki_defconfig or allmodconfig builds for arm, arm64, x86, x86_64 architectures
-(see  https://source.android.com/setup/build/building-kernels)
-- If the patch is not merged from an upstream branch, the subject must be tagged with the type of patch:
-`UPSTREAM:`, `BACKPORT:`, `FROMGIT:`, `FROMLIST:`, or `ANDROID:`.
-- All patches must have a `Change-Id:` tag (see https://gerrit-review.googlesource.com/Documentation/user-changeid.html)
-- If an Android bug has been assigned, there must be a `Bug:` tag.
-- All patches must have a `Signed-off-by:` tag by the author and the submitter
+| | |
+|---|---|
+| Base | Google ACK `android14-6.1` (6.1.177), via [chainonyourdoor/LuminaireKernel-6.1](https://github.com/chainonyourdoor/LuminaireKernel-6.1) |
+| Kernel name | `6.1.177-saan` |
+| Root | [BakaSU](https://github.com/Baka-SU/BakaSU), pinned to `5b76b884` (git submodule in `KernelSU/`) |
+| SUSFS | v2.3.0 kernel patch (`fs/susfs.c`, hooks across `fs/`, `kernel/`, `mm/`, `security/`) |
+| LTO | ThinLTO (`CONFIG_LTO_CLANG_THIN=y`) |
+| Toolchain | AOSP clang `r487747c` |
 
-Additional requirements are listed below based on patch type
+BakaSU is pinned because newer versions refuse to build with SUSFS ("suspend susfs build"). Move the pin only after BakaSU and SUSFS are compatible again.
 
-## Requirements for backports from mainline Linux: `UPSTREAM:`, `BACKPORT:`
+## How it works with your phone
 
-- If the patch is a cherry-pick from Linux mainline with no changes at all
-    - tag the patch subject with `UPSTREAM:`.
-    - add upstream commit information with a `(cherry picked from commit ...)` line
-    - Example:
-        - if the upstream commit message is
-```
-        important patch from upstream
+This is a generic GKI kernel. It carries no duchamp device trees or vendor drivers: the stock vendor modules and device tree come from your ROM's `vendor_boot` and `vendor_dlkm`. For those modules to load, the kernel's KMI generation must match your stock kernel (`android14-11`). Check `uname -r` on stock.
 
-        This is the detailed description of the important patch
+## Build
 
-        Signed-off-by: Fred Jones <fred.jones@foo.org>
-```
->- then Joe Smith would upload the patch for the common kernel as
-```
-        UPSTREAM: important patch from upstream
+### GitHub Actions (recommended)
 
-        This is the detailed description of the important patch
+1. Open the **Actions** tab, select **Build Kernel**, and tap **Run workflow** on branch `android14-6.1`.
+2. Wait about 40 to 90 minutes.
+3. Download the artifact `Saan-6.1.177-saan-duchamp-<date>.zip`.
 
-        Signed-off-by: Fred Jones <fred.jones@foo.org>
+The workflow checks that ThinLTO is on and fails early if it is not. On failure, the **Show first errors** step prints the first errors, and `build-log` is always uploaded.
 
-        Bug: 135791357
-        Change-Id: I4caaaa566ea080fa148c5e768bb1a0b6f7201c01
-        (cherry picked from commit c31e73121f4c1ec41143423ac6ce3ce6dafdcec1)
-        Signed-off-by: Joe Smith <joe.smith@foo.org>
+### Local
+
+```sh
+git clone --recurse-submodules https://github.com/Chandan977808/DuchampSaanKernal
+cd DuchampSaanKernal
+export PATH=/path/to/clang-r487747c/bin:$PATH
+make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig
+make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 -j"$(nproc)" Image
 ```
 
-- If the patch requires any changes from the upstream version, tag the patch with `BACKPORT:`
-instead of `UPSTREAM:`.
-    - use the same tags as `UPSTREAM:`
-    - add comments about the changes under the `(cherry picked from commit ...)` line
-    - Example:
-```
-        BACKPORT: important patch from upstream
+Build requirements: `bc bison flex libssl-dev libelf-dev cpio lz4 zip dwarves` (`dwarves` provides `pahole`, needed for BTF). The output is `out/arch/arm64/boot/Image`.
 
-        This is the detailed description of the important patch
+## Flash
 
-        Signed-off-by: Fred Jones <fred.jones@foo.org>
+1. Back up your stock boot image.
+2. Flash the AnyKernel3 zip from recovery or a kernel flasher.
+3. Install the BakaSU manager app. SUSFS also needs its userspace tool or module (`ksu_susfs`), which is not part of this repo.
 
-        Bug: 135791357
-        Change-Id: I4caaaa566ea080fa148c5e768bb1a0b6f7201c01
-        (cherry picked from commit c31e73121f4c1ec41143423ac6ce3ce6dafdcec1)
-        [joe: Resolved minor conflict in drivers/foo/bar.c ]
-        Signed-off-by: Joe Smith <joe.smith@foo.org>
-```
+If the phone does not boot, restore your stock boot image.
 
-## Requirements for other backports: `FROMGIT:`, `FROMLIST:`,
+## Credits
 
-- If the patch has been merged into an upstream maintainer tree, but has not yet
-been merged into Linux mainline
-    - tag the patch subject with `FROMGIT:`
-    - add info on where the patch came from as `(cherry picked from commit <sha1> <repo> <branch>)`. This
-must be a stable maintainer branch (not rebased, so don't use `linux-next` for example).
-    - if changes were required, use `BACKPORT: FROMGIT:`
-    - Example:
-        - if the commit message in the maintainer tree is
-```
-        important patch from upstream
+- Google, Android Common Kernel
+- chainonyourdoor, LuminaireKernel-6.1
+- Baka-SU, BakaSU
+- simonpunk, SUSFS
+- osm0sis, AnyKernel3
+- MiCode, Xiaomi kernel source
 
-        This is the detailed description of the important patch
+## License
 
-        Signed-off-by: Fred Jones <fred.jones@foo.org>
-```
->- then Joe Smith would upload the patch for the common kernel as
-```
-        FROMGIT: important patch from upstream
-
-        This is the detailed description of the important patch
-
-        Signed-off-by: Fred Jones <fred.jones@foo.org>
-
-        Bug: 135791357
-        (cherry picked from commit 878a2fd9de10b03d11d2f622250285c7e63deace
-         https://git.kernel.org/pub/scm/linux/kernel/git/foo/bar.git test-branch)
-        Change-Id: I4caaaa566ea080fa148c5e768bb1a0b6f7201c01
-        Signed-off-by: Joe Smith <joe.smith@foo.org>
-```
-
-
-- If the patch has been submitted to LKML, but not accepted into any maintainer tree
-    - tag the patch subject with `FROMLIST:`
-    - add a `Link:` tag with a link to the submittal on lore.kernel.org
-    - add a `Bug:` tag with the Android bug (required for patches not accepted into
-a maintainer tree)
-    - if changes were required, use `BACKPORT: FROMLIST:`
-    - Example:
-```
-        FROMLIST: important patch from upstream
-
-        This is the detailed description of the important patch
-
-        Signed-off-by: Fred Jones <fred.jones@foo.org>
-
-        Bug: 135791357
-        Link: https://lore.kernel.org/lkml/20190619171517.GA17557@someone.com/
-        Change-Id: I4caaaa566ea080fa148c5e768bb1a0b6f7201c01
-        Signed-off-by: Joe Smith <joe.smith@foo.org>
-```
-
-## Requirements for Android-specific patches: `ANDROID:`
-
-- If the patch is fixing a bug to Android-specific code
-    - tag the patch subject with `ANDROID:`
-    - add a `Fixes:` tag that cites the patch with the bug
-    - Example:
-```
-        ANDROID: fix android-specific bug in foobar.c
-
-        This is the detailed description of the important fix
-
-        Fixes: 1234abcd2468 ("foobar: add cool feature")
-        Change-Id: I4caaaa566ea080fa148c5e768bb1a0b6f7201c01
-        Signed-off-by: Joe Smith <joe.smith@foo.org>
-```
-
-- If the patch is a new feature
-    - tag the patch subject with `ANDROID:`
-    - add a `Bug:` tag with the Android bug (required for android-specific features)
-
+GPL-2.0, like the Linux kernel. See `COPYING`.
