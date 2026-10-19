@@ -46,6 +46,8 @@ jobs:
           export PATH="$PWD/clang/bin:$PATH"
           MAKE="make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 KCFLAGS=-D__ANDROID_COMMON_KERNEL__"
           $MAKE gki_defconfig
+          grep -E '^(# )?CONFIG_(LTO_NONE|LTO_CLANG_THIN|LTO_CLANG_FULL)[= ]' out/.config
+          grep -q '^CONFIG_LTO_CLANG_THIN=y$' out/.config || { echo "::error::ThinLTO was not enabled (check clang, lld and llvm tools)"; exit 1; }
           $MAKE -j"$(nproc)" Image 2>&1 | tee build.log
           test -f out/arch/arm64/boot/Image || { echo "::error::Image was not produced"; exit 1; }
           echo "ZIP_NAME=Saan-$($MAKE -s kernelrelease)-$DEVICE-$(date +%Y%m%d).zip" >> "$GITHUB_ENV"
