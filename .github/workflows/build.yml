@@ -9,13 +9,16 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 240
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Free disk space
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -26,7 +29,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison flex libssl-dev libelf-dev cpio lz4 zip
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev cpio lz4 zip dwarves
+          pahole --version
 
       - name: Get clang ${{ env.CLANG_VERSION }}
         run: |
@@ -43,7 +47,12 @@ jobs:
           MAKE="make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 KCFLAGS=-D__ANDROID_COMMON_KERNEL__"
           $MAKE gki_defconfig
           $MAKE -j"$(nproc)" Image 2>&1 | tee build.log
+          test -f out/arch/arm64/boot/Image || { echo "::error::Image was not produced"; exit 1; }
           echo "ZIP_NAME=Saan-$($MAKE -s kernelrelease)-$DEVICE-$(date +%Y%m%d).zip" >> "$GITHUB_ENV"
+
+      - name: Show first errors
+        if: failure()
+        run: grep -n -m 30 -E 'error:|\*\*\*|BTF:|undefined|No such file|not available' build.log || tail -50 build.log
 
       - name: Package (AnyKernel3)
         run: |
@@ -59,9 +68,13 @@ jobs:
             anykernel.sh
           zip -r9 "../$ZIP_NAME" . -x ".git*" "README.md" "*placeholder"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ env.ZIP_NAME }}
-          path: |
-            ${{ env.ZIP_NAME }}
-            build.log
+          path: ${{ env.ZIP_NAME }}
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: build-log
+          path: build.log
