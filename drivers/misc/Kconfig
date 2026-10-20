@@ -5,6 +5,17 @@
 
 menu "Misc devices"
 
+config EVONIX_OEM_BYPASS
+	bool "EVONIX OEM navigation charge-pause interface"
+	depends on ARM64 && OF && SYSFS && POWER_SUPPLY=y
+	help
+	  Provide the EVONIX bypass_charging battery interface on Duchamp using
+	  Xiaomi's existing smart_chg navigation policy. Only the owned navigation
+	  request is changed; charger protections and adapter negotiation remain
+	  under OEM control. Required OEM attributes must be supplied by the ROM's
+	  charger drivers. Active status requires measured battery-neutral current;
+	  this is not electrical battery isolation or a fixed charging-power mode.
+
 config SENSORS_LIS3LV02D
 	tristate
 	depends on INPUT

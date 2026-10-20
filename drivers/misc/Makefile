@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
+obj-$(CONFIG_EVONIX_OEM_BYPASS) += evonix_oem_bypass.o
 #
 # Makefile for misc devices that really don't fit anywhere else.
 #
