@@ -61,13 +61,9 @@ jobs:
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3
           cp out/arch/arm64/boot/Image AnyKernel3/
           cd AnyKernel3
-          sed -i \
-            -e "s|^BLOCK=.*|BLOCK=boot;|" \
-            -e "s|^IS_SLOT_DEVICE=.*|IS_SLOT_DEVICE=auto;|" \
-            -e "s|^do.devicecheck=.*|do.devicecheck=1|" \
-            -e "s|^device.name1=.*|device.name1=$DEVICE|" \
-            -e "/^device.name[2-5]=/d" \
-            anykernel.sh
+          # Use our own anykernel.sh instead of the AnyKernel3 default
+          test -s "$GITHUB_WORKSPACE/anykernel/anykernel.sh"
+          cp "$GITHUB_WORKSPACE/anykernel/anykernel.sh" anykernel.sh
           zip -r9 "../$ZIP_NAME" . -x ".git*" "README.md" "*placeholder"
 
       - uses: actions/upload-artifact@v7
