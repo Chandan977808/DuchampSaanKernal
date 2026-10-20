@@ -6,8 +6,6 @@
 
 Custom GKI kernel for **duchamp** (Poco X6 Pro, MT6897), based on Google's Android Common Kernel `android14-6.1`.
 
-> **Status: work in progress.** The source builds and compiles in static checks, but it has not been boot-tested on a device yet. Flash at your own risk and keep your stock boot image.
-
 ## Features
 
 | | |
