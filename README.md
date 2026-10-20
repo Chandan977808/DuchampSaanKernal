@@ -47,6 +47,10 @@ Bypass charging is controlled with [Duchamp Essential](https://github.com/Chanda
 
 Duchamp Essential needs the battery power-supply directory to expose the `bypass_charging_supported`, `bypass_charging` and `bypass_charging_active` nodes. This kernel does not add them, so they have to come from your ROM's charger driver. See the [bypass charging notes](https://github.com/Chandan977808/Duchamp-Essential/blob/main/docs/BYPASS_CHARGING.md).
 
+## Support
+
+If you like Ruyi Kernel, you can support its development: **[Donate](https://t.me/saan_os/80)**
+
 ## Credits
 
 - Google, Android Common Kernel
