@@ -66,10 +66,12 @@ jobs:
           cp "$GITHUB_WORKSPACE/anykernel/anykernel.sh" anykernel.sh
           zip -r9 "../$ZIP_NAME" . -x ".git*" "README.md" "*placeholder"
 
+      # archive: false uploads the flashable zip as-is (no zip inside a zip)
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.ZIP_NAME }}
           path: ${{ env.ZIP_NAME }}
+          archive: false
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
         if: always()
