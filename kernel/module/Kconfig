@@ -22,6 +22,17 @@ menuconfig MODULES
 
 if MODULES
 
+config EVONIX_MODULE_LOAD_ANYWAY
+	bool "Allow module vermagic and symbol CRC mismatches"
+	default n
+	help
+	  Retain EVONIX's load-anyway behavior for stock vendor modules when
+	  kernel version strings or exported-symbol CRCs differ. Mismatches
+	  are logged instead of rejecting the module. This does not translate
+	  incompatible structures, callbacks or missing symbols and can crash
+	  the kernel if the module ABI is incompatible. Signature verification,
+	  ELF validation and the policy for absent version metadata are unchanged.
+
 config MODULE_FORCE_LOAD
 	bool "Forced module loading"
 	default n
