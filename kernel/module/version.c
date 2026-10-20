@@ -51,6 +51,11 @@ int check_version(const struct load_info *info,
 	return 1;
 
 bad_version:
+	if (IS_ENABLED(CONFIG_EVONIX_MODULE_LOAD_ANYWAY)) {
+		pr_warn("%s: disagrees about version of symbol %s, EVONIX: load anyway\n",
+			info->name, symname);
+		return 1;
+	}
 	pr_warn("%s: disagrees about version of symbol %s\n", info->name, symname);
 	return 0;
 }

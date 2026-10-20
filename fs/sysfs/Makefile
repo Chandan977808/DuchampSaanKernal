@@ -4,3 +4,4 @@
 #
 
 obj-y		:= file.o dir.o symlink.o mount.o group.o
+obj-$(CONFIG_EVONIX_OEM_BYPASS) += evonix_supply.o
