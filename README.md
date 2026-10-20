@@ -49,7 +49,8 @@ Duchamp Essential needs the battery power-supply directory to expose the `bypass
 
 ## Support
 
-If you like Ruyi Kernel, you can support its development: **[Donate](https://t.me/saan_os/80)**
+- Questions, bug reports and updates: [Telegram support group](https://t.me/saan_os_discussion)
+- If you like Ruyi Kernel, you can support its development: **[Donate](https://t.me/saan_os/80)**
 
 ## Credits
 
